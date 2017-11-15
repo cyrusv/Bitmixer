@@ -1,0 +1,11 @@
+Jobcoin mixer application
+
+Currently there is just one endpoint to initiate a mix, and no templates or
+front ends.
+
+Things to do before this is production ready:
+ - Persist our running list of pending mixes (`ACCOUNTS`)
+ - Use Celery instead of Threading to poll
+ - Error handling in the polling function. We probably want to
+ - Unittests and integration tests
+ - Generate API Documentation
