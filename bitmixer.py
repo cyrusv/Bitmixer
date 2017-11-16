@@ -5,8 +5,7 @@ import threading
 from decimal import Decimal
 from time import sleep
 
-from flask import Flask
-from flask import request
+from flask import Flask, request
 from flask_restplus import Api, Resource, abort, reqparse
 
 

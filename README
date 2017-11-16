@@ -7,5 +7,5 @@ Things to do before this is production ready:
  - Persist our running list of pending mixes (`ACCOUNTS`)
  - Use Celery instead of Threading to poll
  - Error handling in the polling function. We probably want to
- - Unittests and integration tests
  - Virtual Environment, Docker, other Deployment requirements
+ - Unittests and integration tests
