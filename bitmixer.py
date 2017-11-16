@@ -35,29 +35,37 @@ def transfer(fromAddress, toAddress, amount):
 
 def pollAddress(address):
     while True:
-        url = ADDR_INFO_URL + address
-        resp = requests.get(url).json()
-        incoming = [txn for txn in resp['transactions']
-                    if txn['toAddress'] == address]
-        if incoming:
-            # Pick the earliest to keep it simple and robust
-            firstIncoming = min(incoming, key=lambda t: t['timestamp'])
+        try:
+            url = ADDR_INFO_URL + address
+            resp = requests.get(url).json()
+            incoming = [txn for txn in resp['transactions']
+                        if txn['toAddress'] == address]
+            if incoming:
+                # Pick the earliest to keep it simple and robust
+                firstIncoming = min(incoming, key=lambda t: t['timestamp'])
 
-            # Transfer that amount from this temp addr to the core wallet
-            amt = Decimal(firstIncoming['amount'])
-            resp = transfer(address, CORE_WALLET_ADDR, amt)
+                # Transfer that amount from this temp addr to the core wallet
+                amt = Decimal(firstIncoming['amount'])
+                resp = transfer(address, CORE_WALLET_ADDR, amt)
+                if resp.status_code != 200:
+                    raise ValueError
 
-            # When that finishes, Core Wallet will transfer to the user's addrs
-            outputAddresses = ACCOUNTS[address]
+                # When that finishes, Core Wallet will transfer to user's addrs
+                outputAddresses = ACCOUNTS[address]
 
-            # TODO Split randomly instead of evenly
-            subAmt = amt/len(outputAddresses)
-            for addr in outputAddresses:
-                resp = transfer(CORE_WALLET_ADDR, addr, str(subAmt))
+                # TODO Split randomly instead of evenly
+                subAmt = amt/len(outputAddresses)
+                for addr in outputAddresses:
+                    resp = transfer(CORE_WALLET_ADDR, addr, str(subAmt))
+                    if resp.status_code != 200:
+                        raise ValueError
 
-            return
+                return
 
-        sleep(5)
+            sleep(5)
+        except:
+            log.critical('Error in the pollAddress function: Investigate!')
+            sleep(10)
 
 
 parser = reqparse.RequestParser()
