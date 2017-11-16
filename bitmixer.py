@@ -1,5 +1,4 @@
 import uuid
-import json
 import logging
 import requests
 import threading
@@ -8,10 +7,14 @@ from time import sleep
 
 from flask import Flask
 from flask import request
-from flask import Response
+from flask_restplus import Api, Resource, abort, reqparse
 
 
 app = Flask(__name__)
+api = Api(
+    app, version='0.0', title='Bitmixer',
+    description='A Mixer for Jobcoins', default='Mixer',
+)
 
 log = logging.getLogger('Bitmixer')
 
@@ -45,7 +48,6 @@ def pollAddress(address):
             amt = Decimal(firstIncoming['amount'])
             resp = transfer(address, CORE_WALLET_ADDR, amt)
 
-
             # When that finishes, Core Wallet will transfer to the user's addrs
             outputAddresses = ACCOUNTS[address]
 
@@ -59,41 +61,44 @@ def pollAddress(address):
         sleep(5)
 
 
-@app.route('/provide-list', methods=['POST'])
-def provideList():
-    """
-    Makes a new address for user to deposit coins in, and
-    stores it as a k-v pair with a listOfAddresses
-    we should be mixing into.
-    :param listOfAddresses: List of bitcoin wallets to mix into
-    :return: New Wallet Address for user to put money in to
-        start mixing
-    """
-    listOfAddresses = request.json['listOfAddresses']
-    # Make a new address. In BTC would use pub-priv keypair
-    newAddress = uuid.uuid4().hex
+parser = reqparse.RequestParser()
+parser.add_argument('listOfAddresses', required=True,
+                    help='Provide list of Addresses to mix to', location='json')
 
-    if not listOfAddresses:
-        # TODO write an exception handler class
-        errmsg = {'error': 'Provide listOfAddresses'}
-        return Response(
-            json.dumps(errmsg),
-            status=400,
-            mimetype='application/json'
-        )
 
-    # Store new address with provided addresses so we can poll
-    # TODO make this persistent
-    ACCOUNTS[newAddress] = listOfAddresses
+@api.route('/provide-list/', endpoint='provide-list')
+@api.response(400, 'Invalid input.')
+class Mixer(Resource):
 
-    # TODO A better polling scheme would use celery beat
-    threading.Thread(target=pollAddress, args=(newAddress,)).start()
+    @api.expect(parser)
+    def post(self):
+        """
+        Accepts list of addresses to mix into, returns a temp wallet
 
-    log.info('Provided list of wallets `{}`, returning throwaway wallet `{}`'
-             ''.format(listOfAddresses, newAddress))
-    # For user to know where to deposit
-    return newAddress
+        Makes a new address for user to deposit coins in, and
+        stores it as a k-v pair with a listOfAddresses
+        we should be mixing into.
+        """
+        listOfAddresses = request.json
+
+        # Make a new address. In BTC would use pub-priv keypair
+        newAddress = uuid.uuid4().hex
+        # Validate
+        if not listOfAddresses or not isinstance(listOfAddresses, list):
+            abort(400, 'Illegal value: listOfAddresses')
+
+        # Store new address with provided addresses so we can poll
+        # TODO make this persistent
+        ACCOUNTS[newAddress] = listOfAddresses
+
+        # TODO A better polling scheme would use celery beat
+        threading.Thread(target=pollAddress, args=(newAddress,)).start()
+
+        log.info('Provided list of wallets `{}`, returning throwaway wallet '
+                 '`{}`'.format(listOfAddresses, newAddress))
+        # For user to know where to deposit
+        return newAddress
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
